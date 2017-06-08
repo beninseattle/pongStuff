@@ -1,0 +1,184 @@
+<html>
+<head>
+    <title>Tennis Game</title>
+</head>
+<body>
+<canvas id="gameCanvas" width="800" height="600"></canvas>
+<script>
+    window.onload = function windowReady() {
+        var canvas;
+        var canvasContext;
+        var padding = 2;
+        var ball = {x: 50, y: 50, r: 20, color: 'yellow'};
+        var lPaddle = {x: 0, y: 0, width: 10, height: 100, color: 'white'};
+        var rPaddle = {x: 0, y: 0, width: 10, height: 100, color: 'white'};
+        var fps = 30;
+        var dX = 9;
+        var dY = 7;
+
+        canvas = document.getElementById('gameCanvas');
+        canvasContext = canvas.getContext('2d');
+
+        initGame();
+
+        var drawTimer = setInterval(function (context) {
+            moveStuff(context);
+            drawStuff(context);
+        }, 1000 / fps);
+
+        canvas.addEventListener('mousemove', function (e) {
+            var mousePos = mousePosition(e);
+            lPaddle.y = mousePos.y;
+        });
+
+        function mousePosition(e) {
+            var cRect = canvas.getBoundingClientRect();
+            var doc = document.documentElement;
+            var x = e.clientX - cRect.left - doc.scrollLeft;
+            var y = e.clientY - cRect.top - doc.scrollTop;
+            return {
+                x: x,
+                y: y
+            };
+        }
+
+        function initGame() {
+            // Starting positions for the paddle
+            lPaddle.x = 2;
+            lPaddle.y = 100;
+            rPaddle.x = canvas.width - rPaddle.width - padding;
+            rPaddle.y = 200;
+        }
+
+        function moveStuff() {
+            // Check player paddle bounds
+            if (lPaddle.y < padding) {
+                lPaddle.y = padding;
+            }
+            if (lPaddle.y > canvas.height - lPaddle.height - padding) {
+                lPaddle.y = canvas.height - lPaddle.height - padding;
+            }
+
+            // Project next position
+            var next = {
+                x: ball.x + dX,
+                y: ball.y + dY
+            };
+            // Remainder of velocities when movement exceeds bounds to carry in opposite direction
+            var dExcess = 0;
+
+            var leftBound = padding;
+            var rightBound = canvas.width - padding;
+            var bottomBound = canvas.height - padding;
+            var topBound = padding;
+            var leftPaddleHit = false;
+            var rightPaddleHit = false;
+
+            // @todo These calculations are using the bounding rect of the ball, not the circle
+            if (next.x - ball.r <= leftBound + lPaddle.width) {
+                // Need to check relative to left paddle?
+                if (next.y - ball.r < lPaddle.y + lPaddle.height &&
+                    next.y + ball.r > lPaddle.y
+                ) {
+                    console.log('left paddle collision');
+                    leftBound = leftBound + lPaddle.width;
+                    leftPaddleHit = true;
+                }
+            } else if (next.x + ball.r >= rightBound - lPaddle.width) {
+                // Need to check relative to right paddle?
+                if (next.y - ball.r < rPaddle.y + rPaddle.height &&
+                    next.y + ball.r > rPaddle.y
+                ) {
+                    console.log('right paddle collision');
+                    rightBound = rightBound - rPaddle.width;
+                    rightPaddleHit = true;
+                }
+            }
+
+            if (next.x + ball.r > rightBound) {
+                // Passed right generalized bound
+                dExcess = (next.x + ball.r) - rightBound;
+                if (rightPaddleHit) {
+                    //paddleSpin(rPaddle);
+                }
+                next.x = rightBound - dExcess - ball.r;
+                dX = -dX;
+            } else if (next.x - ball.r < leftBound) {
+                // Passed left generalized bound
+                dExcess = leftBound - (next.x - ball.r);
+                if (leftPaddleHit) {
+                    //paddleSpin(lPaddle);
+                }
+                next.x = leftBound + dExcess + ball.r;
+                dX = -dX;
+            }
+            ball.x = next.x;
+
+            if (next.y + ball.r > bottomBound) {
+                // Passed bottom generalized bound
+                dExcess = (next.y + ball.r) - bottomBound;
+                next.y = bottomBound - dExcess - ball.r;
+                dY = -dY;
+            } else if (next.y - ball.r < topBound) {
+                // Passed top generalized bound
+                dExcess = topBound - (next.y - ball.r);
+                next.y = topBound + dExcess + ball.r;
+                dY = -dY;
+            }
+            ball.y = next.y;
+
+            /**
+             * @todo WHOA not doing it right. need to allow for hitting on leading edge vs trailing edge
+             * to allow for adding/removing english
+             *
+             * Compare the ball's impact on the relevant paddle and alter the velocities for more fun
+             * 1/8 on each end and 1/4 in middle
+             * @param paddle
+             */
+            function paddleSpin(paddle) {
+                var impactFraction = dX / dX - dExcess;
+                var impactY = next.y - (impactFraction * dY);
+                var paddleSegments = paddle.height / 3;
+
+                // Check leading third
+                if (impactY < paddleSegments || impactY > 7 * paddleSegments) {
+                    console.log('edge hit');
+                }
+
+                // Check trailing third
+                else if (impactY > 3 * paddleSegments && impactY < 5 * paddleSegments) {
+                    console.log('middle hit');
+                }
+            }
+        }
+
+        function drawStuff() {
+            drawGameField();
+            drawBall();
+            drawPaddle(lPaddle);
+            drawPaddle(rPaddle);
+        }
+
+        function drawGameField() {
+            colorRect(0, 0, canvas.width, canvas.height, 'black');
+        }
+
+        function drawBall() {
+            canvasContext.fillStyle = ball.color;
+            canvasContext.beginPath();
+            canvasContext.arc(ball.x, ball.y, ball.r, 0, Math.PI * 2, true);
+            canvasContext.fill();
+        }
+
+        function drawPaddle(paddle) {
+            colorRect(paddle.x, paddle.y, paddle.width, paddle.height, paddle.color);
+        }
+
+        function colorRect(x, y, width, height, color) {
+            canvasContext.fillStyle = color;
+            canvasContext.fillRect(x, y, width, height);
+        }
+    };
+</script>
+</body>
+</html>
